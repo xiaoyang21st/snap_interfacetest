@@ -36,39 +36,39 @@ static int process_action(snap_membus_t *din_gmem,
 {
     uint32_t size, bytes_to_transfer;
     uint64_t i_idx, o_idx;
+    word_t text;
+    word_t str_ref;
+
+    memset(str_ref, 'B', BPERDW);
 
     /* byte address received need to be aligned with port width */
     i_idx = act_reg->Data.in.addr >> ADDR_RIGHT_SHIFT;
     o_idx = act_reg->Data.out.addr >> ADDR_RIGHT_SHIFT;
     size = act_reg->Data.in.size;
 
-    main_loop:
-    while (size > 0) {
-//#pragma HLS PIPELINE
-	word_t text;
-	unsigned char i;
 
-	/* Limit the number of bytes to process to a 64B word */
-	bytes_to_transfer = MIN(size, BPERDW);
+    int cmp =-1, cnt;
+    char i;
+    while (cmp != 0) {
 
+	cnt = 0;
         /* Read in one word_t */
 	memcpy((char*) text, din_gmem + i_idx, BPERDW);
-
-	/* Convert lower cases to upper cases byte per byte */
-    uppercase_conversion:
-	for (i = 0; i < sizeof(text); i++ ) {
+	
+    letter_conversion:
+	for (i = 0; i < BPERDW; i++ ) {
 //#pragma HLS UNROLL
-	    if (text[i] >= 'a' && text[i] <= 'z')
-		text[i] = text[i] - ('a' - 'A');
+	    if (text[i] == 'a' || text[i] == 'A') {
+		text[i] = 'B';
+		cnt++;
+	    }
+	if (cnt == 64) 
+		cmp = 0; // stop the action
 	}
 
 	/* Write out one word_t */
 	memcpy(dout_gmem + o_idx, (char*) text, BPERDW);
-
-	size -= bytes_to_transfer;
-	i_idx++;
-	o_idx++;
-    }
+  }
 
     act_reg->Control.Retc = SNAP_RETC_SUCCESS;
     return 0;

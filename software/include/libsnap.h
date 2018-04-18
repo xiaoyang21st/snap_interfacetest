@@ -372,6 +372,54 @@ int snap_action_stop(struct snap_action *action);
 int snap_action_completed(struct snap_action *action, int *rc,
 			  int timeout_sec);
 
+/*** start *******************************************************/
+/************************** NEW **********************************/
+/**
+ * Synchronous way to send a job away.  First step : set registers
+ * @action      handle to streaming framework queue
+ * @cjob        streaming framework job
+ *   @cjob->win_addr   input address of specific job
+ *   @cjob->win_size   input size (use extension ptr if larger than 112 bytes)
+ *   @cjob->wout_addr  output address of specific job
+ *   @cjob->wout_addr  output size (maximum 112 bytes)
+ * @return      SNAP_OK in case of success, else error.
+ */
+int snap_action_sync_execute_job_set_regs(struct snap_action *action,
+                                 struct snap_job *cjob);
+
+/**
+ * Synchronous way to send a job away.  Last step : check completion
+ * @action      handle to streaming framework queue
+ * @cjob        streaming framework job
+ * @cjob->win_addr   input address of specific job
+ *   @cjob->win_size   input size (use extension ptr if larger than 112 bytes)
+ *   @cjob->wout_addr  output address of specific job
+ *   @cjob->wout_addr  output size (maximum 112 bytes)
+ * timeout_sec  timeout used if polling mode
+ * @return      SNAP_OK in case of success, else error.
+ */
+int snap_action_sync_execute_job_check_completion(struct snap_action *action,
+                                 struct snap_job *cjob,
+                                 unsigned int timeout_sec);
+
+/**
+ * Synchronous way to send a job away.  
+ * Should be equivalent to the snap_action_sync_execute_job function
+ * @action      handle to streaming framework queue
+ * @cjob        streaming framework job
+ * @cjob->win_addr   input address of specific job
+ *   @cjob->win_size   input size (use extension ptr if larger than 112 bytes)
+ *   @cjob->wout_addr  output address of specific job
+ *   @cjob->wout_addr  output size (maximum 112 bytes)
+ * timeout_sec  timeout used if polling mode
+ * @return      SNAP_OK in case of success, else error.
+ */
+int snap_action_sync_execute_job_per_steps(struct snap_action *action,
+                                 struct snap_job *cjob,
+                                 unsigned int timeout_sec);
+
+/************************** NEW **********************************/
+/*** end *********************************************************/
 /**
  * Synchronous way to send a job away. Blocks until job is done.
  * @action      handle to streaming framework queue

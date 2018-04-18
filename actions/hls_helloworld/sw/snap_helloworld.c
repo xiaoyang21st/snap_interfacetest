@@ -176,6 +176,9 @@ int main(int argc, char *argv[])
 	uint8_t trailing_zeros[1024] = { 0, };
 	// default is interrupt mode enabled (vs polling)
 	snap_action_flag_t action_irq = (SNAP_ACTION_DONE_IRQ | SNAP_ATTACH_IRQ);
+	char str_ref[64];
+	memset(str_ref, 'B', 64);
+	//int count = 0;
 
 	// collecting the command line arguments
 	while (1) {
@@ -376,7 +379,44 @@ int main(int argc, char *argv[])
 	//  + start the action 
 	//  + wait for completion
 	//  + read all the registers from the action (MMIO) 
-	rc = snap_action_sync_execute_job(action, &cjob, timeout);
+	//rc = snap_action_sync_execute_job(action, &cjob, timeout);
+	
+
+
+	//START rc = snap_action_sync_execute_job_per_steps(action, &cjob, timeout);
+        rc = snap_action_sync_execute_job_set_regs(action, &cjob);
+        if (rc != 0)
+		goto out_error2;
+
+        /* Start Action and wait for finish */
+        snap_action_start(action);
+
+	// Display the time of the action call
+	gettimeofday(&etime, NULL);
+	fprintf(stdout, "SNAP registers set + action start took %lld usec\n",
+		(long long)timediff_usec(&etime, &stime));
+
+	sleep(1);  // if no sleep memset arrives before action => b=>B
+
+	// Collect the timestamp BEFORE the call of the action
+	gettimeofday(&stime, NULL);
+	memset(ibuff, 'a', 64);
+	__hexdump(stderr, ibuff, 64);
+
+	while (memcmp(obuff, str_ref, 64) != 0) 
+		sleep(0.000000000001); // do dummy processing 
+
+	// Display the time of the action call 
+	gettimeofday(&etime, NULL);
+	fprintf(stdout, "SNAP action processing  took %lld usec\n",
+		(long long)timediff_usec(&etime, &stime));
+	__hexdump(stderr, obuff, 64);
+
+        rc = snap_action_sync_execute_job_check_completion(action, &cjob,
+                                timeout);
+	//END rc = snap_action_sync_execute_job_per_steps(action, &cjob, timeout);
+
+
 
 	// Collect the timestamp AFTER the call of the action
 	gettimeofday(&etime, NULL);

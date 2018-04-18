@@ -913,6 +913,206 @@ int snap_action_completed(struct snap_action *action, int *rc, int timeout)
 	return (action_data & ACTION_CONTROL_IDLE) == ACTION_CONTROL_IDLE;
 }
 
+/*** start *******************************************************/
+/************************** NEW **********************************/
+/**
+ * Synchronous way to send a job away.  First step : set registers
+ *
+ * @action	handle to streaming framework action/action
+ * @cjob	streaming framework job
+ * @return	0 on success.
+ */
+
+int snap_action_sync_execute_job_set_regs(struct snap_action *action,
+				 struct snap_job *cjob)
+{
+	int rc;
+	unsigned int i;
+	struct snap_card *card = (struct snap_card *)action;
+	struct snap_queue_workitem job;
+	uint32_t action_addr;
+	uint32_t *job_data;
+	unsigned int mmio_in, mmio_out;
+
+	/* Size must be less than addr[6] */
+	if (cjob->wout_size > SNAP_JOBSIZE) {
+		snap_trace("  %s: err: wout_size too large %d > %d\n", __func__,
+			   cjob->wout_size, SNAP_JOBSIZE);
+		snap_trace("      win_addr  = %llx size = %d\n",
+			   (long long)cjob->win_addr, cjob->win_size);
+		snap_trace("      wout_addr = %llx size = %d\n",
+			   (long long)cjob->wout_addr, cjob->wout_size);
+
+		errno = EINVAL;
+		return -1;
+	}
+
+	/* job.short_action = 0x00; */	/* Set later */
+	job.flags = 0x01; /* FIXME Set Flag to Execute */
+	job.seq = 0x0000; /* Set later */
+	job.retc = 0x00000000;
+	job.priv_data = 0xdeadbeefc0febabeull;
+
+	/* Fill workqueue cacheline which we need to transfer to the action */
+	if (cjob->win_size <= (6 * 16)) {
+		memcpy(&job.user, (void *)(unsigned long)cjob->win_addr,
+		       MIN(cjob->win_size, sizeof(job.user)));
+		mmio_out = cjob->win_size / sizeof(uint32_t);
+	} else {
+		job.user.ext.addr  = cjob->win_addr;
+		job.user.ext.size  = cjob->win_size;
+		job.user.ext.type  = SNAP_ADDRTYPE_HOST_DRAM;
+		job.user.ext.flags = (SNAP_ADDRFLAG_EXT |
+				      SNAP_ADDRFLAG_END);
+		mmio_out = sizeof(job.user.ext) / sizeof(uint32_t);
+	}
+	mmio_in = 16 / sizeof(uint32_t) + mmio_out;
+
+	snap_trace("    win_size: %d wout_size: %d mmio_in: %d mmio_out: %d\n",
+		cjob->win_size, cjob->wout_size, mmio_in, mmio_out);
+	
+	job.short_action = card->sat;/* Set correct Value after attach */
+	job.seq = card->seq++; /* Set correct Value after attach */
+
+	snap_trace("%s: PASS PARAMETERS to Short Action %d Seq: %x\n",
+		   __func__, job.short_action, job.seq);
+
+	/* __hexdump(stderr, &job, sizeof(job)); */
+
+	/* Pass action control and job to the action, should be 128
+	   bytes or a little less */
+	job_data = (uint32_t *)(unsigned long)&job;
+	for (i = 0, action_addr = ACTION_PARAMS_IN; i < mmio_in;
+		i++, action_addr += sizeof(uint32_t)) {
+		rc = snap_mmio_write32(card, action_addr, job_data[i]);
+		if (rc != 0)
+			goto __snap_action_sync_execute_job_exit;
+	}
+
+__snap_action_sync_execute_job_exit:
+	snap_action_stop(action);
+	return rc;
+}
+/**
+ * Synchronous way to send a job away.  Last step : check completion
+ *
+ * @action	handle to streaming framework action/action
+ * @cjob	streaming framework job
+ * timeout_sec  timeout used if polling mode
+ * @return	0 on success.
+ */
+
+int snap_action_sync_execute_job_check_completion(struct snap_action *action,
+				 struct snap_job *cjob,
+				 unsigned int timeout_sec)
+{
+	int rc;
+	unsigned int i;
+	int completed;
+	struct snap_card *card = (struct snap_card *)action;
+	struct snap_queue_workitem job;
+	uint32_t action_addr;
+	uint32_t *job_data;
+	unsigned int mmio_out;
+
+	completed = snap_action_completed(action, &rc, timeout_sec);
+	/* Issue #360 */
+	if (rc != 0) {
+		snap_trace("%s: EIO rc=%d completed=%d\n", __func__,
+			   rc, completed);
+		rc = SNAP_EIO;
+		goto __snap_action_sync_execute_job_exit;
+	}
+	if (completed == 0) {
+		/* Not done */
+		snap_trace("%s: rc=%d\n", __func__, rc);
+		if (rc == 0) {
+			errno = ETIME;
+			rc = SNAP_ETIMEDOUT;
+		}
+		goto __snap_action_sync_execute_job_exit;
+	}
+
+	/* FIXME THIS NEED TO BE CLEANED -- Duplication -start*/
+	/* job.short_action = 0x00; */	/* Set later */
+	job.flags = 0x01; /* FIXME Set Flag to Execute */
+	job.seq = 0x0000; /* Set later */
+	job.retc = 0x00000000;
+	job.priv_data = 0xdeadbeefc0febabeull;
+	/* Fill workqueue cacheline which we need to transfer to the action */
+	if (cjob->win_size <= (6 * 16)) {
+		memcpy(&job.user, (void *)(unsigned long)cjob->win_addr,
+		       MIN(cjob->win_size, sizeof(job.user)));
+		mmio_out = cjob->win_size / sizeof(uint32_t);
+	} else {
+		job.user.ext.addr  = cjob->win_addr;
+		job.user.ext.size  = cjob->win_size;
+		job.user.ext.type  = SNAP_ADDRTYPE_HOST_DRAM;
+		job.user.ext.flags = (SNAP_ADDRFLAG_EXT |
+				      SNAP_ADDRFLAG_END);
+		mmio_out = sizeof(job.user.ext) / sizeof(uint32_t);
+	}
+	/* Duplication -end*/
+	/* Get RETC (0x184) back to the caller */
+	rc = snap_mmio_read32(card, ACTION_RETC_OUT, &cjob->retc);
+	if (rc != 0)
+		goto __snap_action_sync_execute_job_exit;
+	snap_trace("%s: RETURN RESULTS %ld bytes (%d)\n", __func__,
+		   mmio_out * sizeof(uint32_t), mmio_out);
+
+	/* Get job results max 6*16 bytes back to the caller */
+	if (cjob->wout_addr == 0) {
+		/* No out Address, mmio_out is set */
+		job_data = (uint32_t *)(unsigned long)cjob->win_addr;
+	} else {
+		job_data = (uint32_t *)(unsigned long)cjob->wout_addr;
+		mmio_out = cjob->wout_size / sizeof(uint32_t);
+	}
+
+	/* No need to read back 0x190, 0x194, 0x198 and 0x19c .... */
+	for (i = 0, action_addr = ACTION_PARAMS_OUT+0x10; i < mmio_out;
+	     i++, action_addr += sizeof(uint32_t)) {
+		rc = snap_mmio_read32(card, action_addr, &job_data[i]);
+		if (rc != 0)
+			goto __snap_action_sync_execute_job_exit;
+		snap_trace("  %s: %d Addr: %x Data: %x\n", __func__, i,
+			   action_addr, job_data[i]);
+	}
+
+__snap_action_sync_execute_job_exit:
+	snap_action_stop(action);
+	return rc;
+}
+
+/** NEW **/
+/**
+ * Synchronous way to send a job away. Blocks until job is done.
+ * Should be equivalent to the snap_action_sync_execute_job function
+ *
+ * @action	handle to streaming framework action/action
+ * @cjob	streaming framework job
+ * @return	0 on success.
+ */
+
+int snap_action_sync_execute_job_per_steps(struct snap_action *action,
+				 struct snap_job *cjob,
+				 unsigned int timeout_sec)
+{
+	int rc;
+
+	rc = snap_action_sync_execute_job_set_regs(action, cjob);
+	if (rc != 0)
+		return rc;
+
+	/* Start Action and wait for finish */
+	snap_action_start(action);
+	rc = snap_action_sync_execute_job_check_completion(action, cjob, 
+				timeout_sec);
+	return rc;
+}
+/*** end ****************** NEW **********************************/
+/*****************************************************************/
+
 /**
  * Synchronous way to send a job away. Blocks until job is done.
  *
