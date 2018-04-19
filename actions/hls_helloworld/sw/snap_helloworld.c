@@ -417,6 +417,7 @@ int main(int argc, char *argv[])
 		(long long)timediff_usec(&etime, &stime));
 	__hexdump(stderr, obuff, 64);
 
+	gettimeofday(&stime, NULL);
         rc = snap_action_sync_execute_job_check_completion(action, &cjob,
                                 timeout);
 	//END rc = snap_action_sync_execute_job_per_steps(action, &cjob, timeout);
@@ -469,7 +470,7 @@ int main(int argc, char *argv[])
 				"only with HOST_DRAM\n");
 	}
 	// Display the time of the action call (MMIO registers filled + execution)
-	fprintf(stdout, "SNAP helloworld took %lld usec\n",
+	fprintf(stdout, "SNAP helloworld closing action took %lld usec\n",
 		(long long)timediff_usec(&etime, &stime));
 
 	// Detach action + disallocate the card
