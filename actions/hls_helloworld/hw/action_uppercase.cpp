@@ -57,7 +57,7 @@ static int process_action(snap_membus_t *din_gmem,
 	
     letter_conversion:
 	for (i = 0; i < BPERDW; i++ ) {
-//#pragma HLS UNROLL
+#pragma HLS UNROLL
 	    if (text[i] == 'a' || text[i] == 'A') {
 		text[i] = 'B';
 		cnt++;

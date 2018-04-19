@@ -396,12 +396,17 @@ int main(int argc, char *argv[])
 	fprintf(stdout, "SNAP registers set + action start took %lld usec\n",
 		(long long)timediff_usec(&etime, &stime));
 
-	sleep(1);  // if no sleep memset arrives before action => b=>B
+	//sleep(1);  // if no sleep memset arrives before action => b=>B
+	memset(ibuff, 'f', 64);
+	memset(ibuff, 'e', 64);
+	memset(ibuff, 'd', 64);
+	memset(ibuff, 'c', 64);
+	memset(ibuff, 'b', 64);
 
 	// Collect the timestamp BEFORE the call of the action
 	gettimeofday(&stime, NULL);
 	memset(ibuff, 'a', 64);
-	__hexdump(stderr, ibuff, 64);
+	//__hexdump(stderr, ibuff, 64);
 
 	while (memcmp(obuff, str_ref, 64) != 0) 
 		sleep(0.000000000001); // do dummy processing 
