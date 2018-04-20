@@ -58,12 +58,13 @@ static int process_action(snap_membus_t *din_gmem,
     letter_conversion:
 	for (i = 0; i < BPERDW; i++ ) {
 #pragma HLS UNROLL
-	    if (text[i] == 'a' || text[i] == 'A') {
-		text[i] = 'B';
+	    if (text[i] == 'z') 
 		cnt++;
-	    }
+	    if (text[i] >= 'a' && text[i] <= 'z') 
+		text[i] = text[i] - ('a' - 'B'); //uppercase + 1 letter : a=>B
+	    
 	if (cnt == 64) 
-		cmp = 0; // stop the action
+		cmp = 0; // stop the action if 64 'z' 
 	}
 
 	/* Write out one word_t */

@@ -177,7 +177,6 @@ int main(int argc, char *argv[])
 	// default is interrupt mode enabled (vs polling)
 	snap_action_flag_t action_irq = (SNAP_ACTION_DONE_IRQ | SNAP_ATTACH_IRQ);
 	char str_ref[64];
-	memset(str_ref, 'B', 64);
 	//int count = 0;
 
 	// collecting the command line arguments
@@ -396,26 +395,30 @@ int main(int argc, char *argv[])
 	fprintf(stdout, "SNAP registers set + action start took %lld usec\n",
 		(long long)timediff_usec(&etime, &stime));
 
-	//sleep(1);  // if no sleep memset arrives before action => b=>B
-	memset(ibuff, 'f', 64);
-	memset(ibuff, 'e', 64);
-	memset(ibuff, 'd', 64);
-	memset(ibuff, 'c', 64);
-	memset(ibuff, 'b', 64);
 
 	// Collect the timestamp BEFORE the call of the action
 	gettimeofday(&stime, NULL);
-	memset(ibuff, 'a', 64);
 	//__hexdump(stderr, ibuff, 64);
+	char letter = 'a';
+	int i;
+	for (i = 0; i < 26; i++) {
+		memset(ibuff, letter, 64);
+		memset(str_ref, (letter - ('a' - 'B')), 64); //uppercase + 1 char: a=>B
+		//__hexdump(stderr, ibuff, 64);
+		//__hexdump(stderr, str_ref, 64);
 
-	while (memcmp(obuff, str_ref, 64) != 0) 
-		sleep(0.000000000001); // do dummy processing 
+		//Poll until obuff has been processed by hardware action
+		while (memcmp(obuff, str_ref, 64) != 0) {
+			sleep(0.000000000001); // do dummy processing 
+		}
+		letter ++;
+		//__hexdump(stderr, obuff, 64);
+	}
 
 	// Display the time of the action call 
 	gettimeofday(&etime, NULL);
-	fprintf(stdout, "SNAP action processing  took %lld usec\n",
-		(long long)timediff_usec(&etime, &stime));
-	__hexdump(stderr, obuff, 64);
+	fprintf(stdout, "SNAP action processing (AVERAGE/access) took %lld usec\n",
+		(long long)(timediff_usec(&etime, &stime)/26));
 
 	gettimeofday(&stime, NULL);
         rc = snap_action_sync_execute_job_check_completion(action, &cjob,
