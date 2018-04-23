@@ -44,6 +44,24 @@ static const char *version = GIT_VERSION;
 
 static const char *mem_tab[] = { "HOST_DRAM", "CARD_DRAM", "TYPE_NVME" };
 
+int memcmp_volatile(volatile void* s1, const void* s2,size_t n)
+{
+    volatile unsigned char *p1 = s1;
+    const unsigned char *p2 = s2;
+    while(n--)
+        if( *p1 != *p2 )
+            return *p1 - *p2;
+        else
+            p1++,p2++;
+    return 0;
+}
+void memset_volatile(volatile void *s, char c, size_t n)
+{
+    volatile char *p = s;
+    while (n-- > 0) {
+        *p++ = c;
+    }
+}
 /**
  * @brief	prints valid command line options
  *
@@ -167,6 +185,7 @@ int main(int argc, char *argv[])
 	struct timeval etime, stime;
 	ssize_t size = 1024 * 1024;
 	uint8_t *ibuff = NULL, *obuff = NULL;
+	volatile uint8_t *vol_ibuff = NULL, *vol_obuff = NULL;
 	uint8_t type_in = SNAP_ADDRTYPE_HOST_DRAM;
 	uint64_t addr_in = 0x0ull;
 	uint8_t type_out = SNAP_ADDRTYPE_HOST_DRAM;
@@ -296,6 +315,10 @@ int main(int argc, char *argv[])
 			goto out_error;
 		memset(ibuff, 0, size);
 
+		vol_ibuff = snap_malloc(size); //64Bytes aligned malloc
+		if (vol_ibuff == NULL)
+			goto out_error;
+
 		fprintf(stdout, "reading input data %d bytes from %s\n",
 			(int)size, input);
 
@@ -306,7 +329,7 @@ int main(int argc, char *argv[])
 
 		// prepare params to be written in MMIO registers for action
 		type_in = SNAP_ADDRTYPE_HOST_DRAM;
-		addr_in = (unsigned long)ibuff;
+		addr_in = (unsigned long)vol_ibuff;
 	}
 
 	/* if output file is defined, use that as output */
@@ -319,9 +342,13 @@ int main(int argc, char *argv[])
 			goto out_error;
 		memset(obuff, 0x0, set_size);
 
+		vol_obuff = snap_malloc(set_size); //64Bytes aligned malloc
+		if (vol_obuff == NULL)
+			goto out_error;
+
 		// prepare params to be written in MMIO registers for action
 		type_out = SNAP_ADDRTYPE_HOST_DRAM;
-		addr_out = (unsigned long)obuff;
+		addr_out = (unsigned long)vol_obuff;
 	}
 
 
@@ -402,22 +429,26 @@ int main(int argc, char *argv[])
 	char letter = 'a';
 	int i;
 	for (i = 0; i < 26; i++) {
-		memset(ibuff, letter, 64);
-		memset(str_ref, (letter - ('a' - 'B')), 64); //uppercase + 1 char: a=>B
+		// Set ibuff with a letter 
+		//memset(ibuff, letter, 64);
+		memset_volatile(vol_ibuff, letter, 64);
+
+		// Set str_ref with uppercase of letter + 1 char: a=>B
+		memset(str_ref, (letter - ('a' - 'B')), 64); 
 		//__hexdump(stderr, ibuff, 64);
 		//__hexdump(stderr, str_ref, 64);
 
 		//Poll until obuff has been processed by hardware action
-		while (memcmp(obuff, str_ref, 64) != 0) {
-			sleep(0.000000000001); // do dummy processing 
+		while (memcmp_volatile(vol_obuff, str_ref, 64) != 0) {
 		}
+		
 		letter ++;
 		//__hexdump(stderr, obuff, 64);
 	}
 
 	// Display the time of the action call 
 	gettimeofday(&etime, NULL);
-	fprintf(stdout, "SNAP action processing (AVERAGE/access) took %lld usec\n",
+	fprintf(stdout, "SNAP action processing (AVERAGE/ 26access) took %lld usec\n",
 		(long long)(timediff_usec(&etime, &stime)/26));
 
 	gettimeofday(&stime, NULL);

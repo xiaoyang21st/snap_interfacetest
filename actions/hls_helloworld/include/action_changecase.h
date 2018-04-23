@@ -33,6 +33,8 @@ typedef struct helloworld_job {
 	struct snap_addr out;   /* offset table */
 } helloworld_job_t;
 
+void memset_volatile(volatile void *s, char c, size_t n);
+int memcmp_volatile(volatile void* s1, const void* s2,size_t n);
 #ifdef __cplusplus
 }
 #endif
