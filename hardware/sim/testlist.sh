@@ -41,7 +41,7 @@
     call_args=$*; ((n+=1)); echo "loop=$loop/$loops n=$n calling $call_args"
     ts5=$(date +%s%N)                                   # begin of step
     free1=$free2                                        # old counter, if one exists
-    ${call_args}; step_rc=$?                            # execute step
+    step_rc=0;${call_args} ||step_rc=$?                 # execute step
     ts6=$(date +%s%N);                                  # begin of step
     free2=$(snap_peek 0x80|grep ']'|awk '{print $2}')   # cycle timestamp from freerunning counter
     deltasim=$(( ($ts6-$ts5)/1000000 ));    s=$((deltasim/1000)); ms=$((deltasim%1000))
@@ -366,15 +366,15 @@
  #
     if [[ "$t0l" == "10141003" || "${env_action}" == "hls_search"* ]];then echo -e "$del\ntesting snap_search"
       step "snap_search -h"
-      for size in 1 2 30 257 1024 $rnd1k4k;do to=$((size*160+600))
+      for size in 1 2 30 257 1024 $rnd1k4k;do to=$((size*160+900))
         char=$(cat /dev/urandom|tr -dc 'a-zA-Z0-9'|fold -w 1|head -n 1)                               # one random ASCII  char to search for
         head -c $size </dev/zero|tr '\0' 'A' >${size}.uni                                             # same char mult times
         cat /dev/urandom|tr -dc 'a-zA-Z0-9'|fold -w ${size}|head -n 1 >${size}.rnd;head ${size}.rnd   # random data alphanumeric, includes EOF
         count=$(fgrep -o $char ${size}.rnd|wc -l)                                                     # expected occurence of char in random file
-        step "snap_search -m2 -p${char} -i${size}.rnd -E${count} -t$to -v"
+#       step "snap_search -m2 -p${char} -i${size}.rnd -E${count} -t$to -v"
         step "snap_search -m2 -pA       -i${size}.uni -E${size}  -t$to -v"
         step "snap_search -m1 -p${char} -i${size}.rnd -E${count} -t$to -v"
-        step "snap_search -m1 -pA       -i${size}.uni -E${size}  -t$to -v"
+#       step "snap_search -m1 -pA       -i${size}.uni -E${size}  -t$to -v"
 ## disabled, until mode=m0 works
 #       step "snap_search -m0 -p${char} -i${size}.rnd -E${count} -t$to -v"
 #       step "snap_search -m0 -pA       -i${size}.uni -E${size}  -t$to -v"
@@ -394,10 +394,10 @@
       step "snap_intersect -h"
       step "snap_intersect    -m1 -v -t2000"
       step "snap_intersect -I -m1 -v -t2000"
-      for i in 1 2 $rnd10;do num64=$(((i*$xfer)%64))   # adopt to capability reg xfer size
-        let max=2*$num64; rm -f table1.txt table2.txt
-        $ACTION_ROOT/tests/gen_input_table.pl $num64 0 $max $num64 0 $max >snap_intersect_h.log;gen_rc=$?
-        echo "num64=$num64";wc -c table*.txt; cat table*.txt
+      for i in 1 2 $rnd10;do num64=$(($i*$xfer/64))   # adopt to capability reg xfer size
+        max=$((2*$num64)); rm -f table1.txt table2.txt
+        gen_rc=0;$ACTION_ROOT/tests/gen_input_table.pl $num64 0 $max $num64 0 $max >snap_intersect_h.log||gen_rc=$?
+        echo "i=$i num64=$num64 max=$max gen_input_table RC=${gen_rc}"; wc -c table*.txt; cat table*.txt
         step "snap_intersect -m1    -i table1.txt -j table2.txt -v -t2000"
         step "snap_intersect -m1 -s -i table1.txt -j table2.txt -v -t2000"
       done
@@ -407,10 +407,10 @@
       step "snap_intersect -h"
       step "snap_intersect    -m2 -v -t2000"
       step "snap_intersect -I -m2 -v -t2000"
-      for i in 1 2 $rnd10;do num64=$(((i*$xfer)%64))   # adopt to capability reg xfer size
-        let max=2*$num64; rm -f table1.txt table2.txt
-        $ACTION_ROOT/tests/gen_input_table.pl $num64 0 $max $num64 0 $max >snap_intersect_h.log;gen_rc=$?
-        echo "num64=$num64";wc -c table*.txt; cat table*.txt
+      for i in 1 2 $rnd10;do num64=$(($i*$xfer/64))   # adopt to capability reg xfer size
+        max=$((2*$num64)); rm -f table1.txt table2.txt
+        gen_rc=0; $ACTION_ROOT/tests/gen_input_table.pl $num64 0 $max $num64 0 $max >snap_intersect_s.log||gen_rc=$?
+        echo "i=$i num64=$num64 max=$max gen_input_table RC=${gen_rc}"; wc -c table*.txt; cat table*.txt
         step "snap_intersect -m2    -i table1.txt -j table2.txt -v -t2000"
         step "snap_intersect -m2 -s -i table1.txt -j table2.txt -v -t2000"
       done
