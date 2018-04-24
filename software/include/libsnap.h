@@ -385,7 +385,8 @@ int snap_action_completed(struct snap_action *action, int *rc,
  * @return      SNAP_OK in case of success, else error.
  */
 int snap_action_sync_execute_job_set_regs(struct snap_action *action,
-                                 struct snap_job *cjob);
+                                 struct snap_job *cjob,
+                                 unsigned int *mmio_out);
 
 /**
  * Synchronous way to send a job away.  Last step : check completion
@@ -400,11 +401,12 @@ int snap_action_sync_execute_job_set_regs(struct snap_action *action,
  */
 int snap_action_sync_execute_job_check_completion(struct snap_action *action,
                                  struct snap_job *cjob,
-                                 unsigned int timeout_sec);
+                                 unsigned int timeout_sec,
+                                 unsigned int mmio_out);
 
 /**
  * Synchronous way to send a job away.  
- * Should be equivalent to the snap_action_sync_execute_job function
+ * This function is a split of the snap_action_sync_execute_job function
  * @action      handle to streaming framework queue
  * @cjob        streaming framework job
  * @cjob->win_addr   input address of specific job

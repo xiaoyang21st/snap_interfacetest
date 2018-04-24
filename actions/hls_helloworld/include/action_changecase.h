@@ -35,6 +35,7 @@ typedef struct helloworld_job {
 
 void memset_volatile(volatile void *s, char c, size_t n);
 int memcmp_volatile(volatile void* s1, const void* s2,size_t n);
+void *memcpy_from_volatile(void *dest, volatile void *src, size_t n);
 #ifdef __cplusplus
 }
 #endif

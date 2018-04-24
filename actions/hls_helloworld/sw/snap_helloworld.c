@@ -44,6 +44,14 @@ static const char *version = GIT_VERSION;
 
 static const char *mem_tab[] = { "HOST_DRAM", "CARD_DRAM", "TYPE_NVME" };
 
+void *memcpy_from_volatile(void *dest, volatile void *src, size_t n)
+{
+    char *dp = dest;
+    volatile char *sp = src;
+    while (n--)
+        *dp++ = *sp++;
+    return dest;
+}
 int memcmp_volatile(volatile void* s1, const void* s2,size_t n)
 {
     volatile unsigned char *p1 = s1;
@@ -197,6 +205,7 @@ int main(int argc, char *argv[])
 	snap_action_flag_t action_irq = (SNAP_ACTION_DONE_IRQ | SNAP_ATTACH_IRQ);
 	char str_ref[64];
 	//int count = 0;
+	unsigned int mmio_out = 0;
 
 	// collecting the command line arguments
 	while (1) {
@@ -410,7 +419,7 @@ int main(int argc, char *argv[])
 
 
 	//START rc = snap_action_sync_execute_job_per_steps(action, &cjob, timeout);
-        rc = snap_action_sync_execute_job_set_regs(action, &cjob);
+        rc = snap_action_sync_execute_job_set_regs(action, &cjob, &mmio_out);
         if (rc != 0)
 		goto out_error2;
 
@@ -425,40 +434,42 @@ int main(int argc, char *argv[])
 
 	// Collect the timestamp BEFORE the call of the action
 	gettimeofday(&stime, NULL);
-	//__hexdump(stderr, ibuff, 64);
 	char letter = 'a';
 	int i;
-	for (i = 0; i < 26; i++) {
-		// Set ibuff with a letter 
-		//memset(ibuff, letter, 64);
+	int MAX_TESTS = 26;
+	for (i = 0; i < MAX_TESTS; i++) {
+		// Set vol_ibuff with a letter 
 		memset_volatile(vol_ibuff, letter, 64);
 
-		// Set str_ref with uppercase of letter + 1 char: a=>B
-		memset(str_ref, (letter - ('a' - 'B')), 64); 
-		//__hexdump(stderr, ibuff, 64);
+		// Set str_ref with uppercase of letter
+		memset(str_ref, (letter - ('a' - 'A')), 64); 
 		//__hexdump(stderr, str_ref, 64);
 
-		//Poll until obuff has been processed by hardware action
+		//Poll until vol_obuff has been processed by hardware action
 		while (memcmp_volatile(vol_obuff, str_ref, 64) != 0) {
 		}
 		
 		letter ++;
-		//__hexdump(stderr, obuff, 64);
 	}
+	/* Copy vol_buff to buff memory area */
+	memcpy_from_volatile(ibuff, vol_ibuff, 64);
+	memcpy_from_volatile(obuff, vol_obuff, 64);
 
 	// Display the time of the action call 
 	gettimeofday(&etime, NULL);
-	fprintf(stdout, "SNAP action processing (AVERAGE/ 26access) took %lld usec\n",
-		(long long)(timediff_usec(&etime, &stime)/26));
+	fprintf(stdout, "SNAP action processing (AVERAGE on %d access) took %lld usec\n",
+		MAX_TESTS, 
+		(long long)(timediff_usec(&etime, &stime) / MAX_TESTS));
 
+	// Collect the timestamp BEFORE the last step of the action completion
 	gettimeofday(&stime, NULL);
         rc = snap_action_sync_execute_job_check_completion(action, &cjob,
-                                timeout);
+                                timeout, mmio_out);
 	//END rc = snap_action_sync_execute_job_per_steps(action, &cjob, timeout);
 
 
 
-	// Collect the timestamp AFTER the call of the action
+	// Collect the timestamp AFTER the last step of the action completion
 	gettimeofday(&etime, NULL);
 	if (rc != 0) {
 		fprintf(stderr, "err: job execution %d: %s!\n", rc,
@@ -469,7 +480,7 @@ int main(int argc, char *argv[])
 	/* If the output buffer is in host DRAM we can write it to a file */
 	if (output != NULL) {
 		fprintf(stdout, "writing output data %p %d bytes to %s\n",
-			obuff, (int)size, output);
+			vol_obuff, (int)size, output);
 
 		rc = __file_write(output, obuff, size);
 		if (rc < 0)

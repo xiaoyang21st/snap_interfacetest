@@ -61,7 +61,7 @@ static int process_action(snap_membus_t *din_gmem,
 	    if (text[i] == 'z') 
 		cnt++;
 	    if (text[i] >= 'a' && text[i] <= 'z') 
-		text[i] = text[i] - ('a' - 'B'); //uppercase + 1 letter : a=>B
+		text[i] = text[i] - ('a' - 'A'); //uppercase
 	    
 	if (cnt == 64) 
 		cmp = 0; // stop the action if 64 'z' 
