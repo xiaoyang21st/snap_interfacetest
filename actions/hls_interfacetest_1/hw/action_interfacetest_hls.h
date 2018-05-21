@@ -23,20 +23,12 @@
 #include <hls_stream.h>
 
 #include <hls_snap.H>
-#include <../sw/action_interfacetest.h>
+#include <action_interfacetest.h>
 
 #define CARD_DRAM_SIZE (1 * 1024 *1024 * 1024)
 #define MAX_NB_OF_BYTES_READ  (4 * 1024)
 #define MAX_NB_OF_WORDS_READ MAX_NB_OF_BYTES_READ/BPERDW
 #define BPERCL 128                           //128Bytes for one PSL Cacheline
-//typedef char word_t[BPERDW];
-//typedef snapu64_t address_t;
-
-//#define PATTERN_SIZE BPERDW
-//#define TEXT_SIZE    4096 * MAX_NB_OF_BYTES_READ // used for streaming only
-//#define HOST2DDR 0
-//#define DDR2HOST 1
-
 //---------------------------------------------------------------------
 typedef struct {
     CONTROL Control;       /*  16 bytes */
