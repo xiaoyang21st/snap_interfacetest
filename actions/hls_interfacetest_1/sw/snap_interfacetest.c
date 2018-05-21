@@ -38,10 +38,8 @@
 #include <snap_hls_if.h>
 
 int verbose_flag = 0;
-
 static const char *version = GIT_VERSION;
 
-//static const char *mem_tab[] = { "HOST_DRAM", "CARD_DRAM", "TYPE_NVME" };
 
 /**
  * @brief    prints valid command line options
@@ -52,69 +50,13 @@ static void usage(const char *prog)
 {
     printf("Usage: %s [-h] [-v, --verbose] [-V, --version]\n"
            "  -C, --card <cardno>       can be (0...3)\n"
-           /*"  -i, --input <file.bin>    input file.\n"
-            "  -o, --output <file.bin>   output file.\n"*/
-           "  -A, --type-in <CARD_DRAM, HOST_DRAM, ...>.\n"
-           "  -a, --addr-in <addr>      address e.g. in CARD_RAM.\n"
-           "  -D, --type-out <CARD_DRAM,HOST_DRAM, ...>.\n"
-           "  -d, --addr-out <addr>     address e.g. in CARD_RAM.\n"
-           "  -s, --size <size>         size of data.\n"
            "  -t, --timeout             timeout in sec to wait for done.\n"
-           "  -X, --verify              verify result if possible\n"
            "  -N, --no-irq              disable Interrupts\n"
+           "It shows a simple example that HW and SW do some exchanges on the memory data.\n"
+           "  HW increases the number by 1\n"
+           "  SW doubles the number\n"
+           "After several iterations to measure the latency\n"
            "\n"
-           "Useful parameters (to be placed before the command):\n"
-           "----------------------------------------------------\n"
-           "SNAP_TRACE=0x0   no debug trace  (default mode)\n"
-           "SNAP_TRACE=0xF   full debug trace\n"
-           "SNAP_CONFIG=FPGA hardware execution   (default mode)\n"
-           "SNAP_CONFIG=CPU  software execution\n"
-           "\n"
-           "Example on a real card:\n"
-           "-----------------------\n"
-           "cd /home/snap && export ACTION_ROOT=/home/snap/actions/hls_helloworld\n"
-           "source snap_path.sh\n"
-           "snap_maint -vv\n"
-           "\n"
-           "echo clean possible temporary old files \n"
-           "rm /tmp/t2; rm /tmp/t3\n"
-           "echo Prepare the text to process\n"
-           "echo \"Hello world. This is my first CAPI SNAP experience. It's real fun!\""
-           " > /tmp/t1\n"
-           "\n"
-           "echo Run the application + hardware action on FPGA\n"
-           "snap_helloworld -i /tmp/t1 -o /tmp/t2\n"
-           "echo Display input file: && cat /tmp/t1\n"
-           "echo Display output file from FPGA executed action -UPPER CASE expected-:"
-           " && cat /tmp/t2\n"
-           "\n"
-           "echo Run the application + software action on CPU\n"
-           "SNAP_CONFIG=CPU  snap_helloworld -i /tmp/t1 -o /tmp/t3\n"
-           "echo Display input file: && cat /tmp/t1\n"
-           "echo Display output file from CPU executed action -LOWER CASE expected-:"
-           " && cat /tmp/t3\n"
-           "\n"
-           "Example for a simulation\n"
-           "------------------------\n"
-           "snap_maint -vv\n"
-           "\n"
-           "echo clean possible temporary old files \n"
-           "rm /tmp/t2; rm /tmp/t3\n"
-           "echo Prepare the text to process\n"
-           "echo \"Hello world. This is my first CAPI SNAP experience. It's real fun!\""
-           " > /tmp/t1\n"
-           "\n"
-           "echo Run the application + hardware action on the FPGA emulated on CPU\n"
-           "snap_helloworld -i /tmp/t1 -o /tmp/t2\n"
-           "echo Display input file: && cat /tmp/t1\n"
-           "echo Display output file from FPGA executed action -UPPER CASE expected-:"
-           " && cat /tmp/t2\n"
-           "\n"
-           "echo Run the application + software action on CPU\n"
-           "SNAP_CONFIG=CPU  snap_helloworld -i /tmp/t1 -o /tmp/t3\n"
-           "echo Display input file: && cat /tmp/t1\n"
-           "echo Display output file from CPU executed action -LOWER CASE expected-:"
-           " && cat /tmp/t3\n"
            "\n",
            prog);
 }
@@ -153,18 +95,14 @@ int main(int argc, char *argv[])
     char device[128];
     struct snap_job cjob;
     struct interfacetest_job_t mjob;
-    //const char *input = NULL;
-    //const char *output = NULL;
     unsigned long timeout = 600;
-    const char *space = "CARD_RAM";
     struct timeval etime, stime;
     ssize_t size = 1024 * 1024;
-    uint8_t *ibuff = NULL, *obuff = NULL;
+    int32_t *ibuff = NULL, *obuff = NULL;
     uint8_t type_in = SNAP_ADDRTYPE_HOST_DRAM;
     uint64_t addr_in = 0x0ull;
     uint8_t type_out = SNAP_ADDRTYPE_HOST_DRAM;
     uint64_t addr_out = 0x0ull;
-    int verify = 0;
     int exit_code = EXIT_SUCCESS;
     
     // default is interrupt mode enabled (vs polling)
@@ -174,25 +112,17 @@ int main(int argc, char *argv[])
     while (1) {
         int option_index = 0;
         static struct option long_options[] = {
-            { "card",     required_argument, NULL, 'C' },
-            /*{ "input",     required_argument, NULL, 'i' },
-             { "output",     required_argument, NULL, 'o' },*/
-            { "src-type",     required_argument, NULL, 'A' },
-            { "src-addr",     required_argument, NULL, 'a' },
-            { "dst-type",     required_argument, NULL, 'D' },
-            { "dst-addr",     required_argument, NULL, 'd' },
-            { "size",     required_argument, NULL, 's' },
-            { "timeout",     required_argument, NULL, 't' },
-            { "verify",     no_argument,        NULL, 'X' },
-            { "no-irq",     no_argument,        NULL, 'N' },
+            { "card",        required_argument,  NULL, 'C' },
+            { "timeout",     required_argument,  NULL, 't' },
+            { "no-irq",      no_argument,        NULL, 'N' },
             { "version",     no_argument,        NULL, 'V' },
             { "verbose",     no_argument,        NULL, 'v' },
-            { "help",     no_argument,        NULL, 'h' },
-            { 0,         no_argument,        NULL, 0   },
+            { "help",        no_argument,        NULL, 'h' },
+            { 0,             no_argument,        NULL, 0   },
         };
         
         ch = getopt_long(argc, argv,
-                         "C:i:o:A:a:D:d:s:t:XNVvh",
+                         "C:t:NVvh",
                          long_options, &option_index);
         if (ch == -1)
             break;
@@ -201,50 +131,8 @@ int main(int argc, char *argv[])
             case 'C':
                 card_no = strtol(optarg, (char **)NULL, 0);
                 break;
-                /*case 'i':
-                 input = optarg;
-                 break;
-                 case 'o':
-                 output = optarg;
-                 break;*/
-                /* input data */
-                /*case 'A':
-                 space = optarg;
-                 if (strcmp(space, "CARD_DRAM") == 0)
-                 type_in = SNAP_ADDRTYPE_CARD_DRAM;
-                 else if (strcmp(space, "HOST_DRAM") == 0)
-                 type_in = SNAP_ADDRTYPE_HOST_DRAM;
-                 else {
-                 usage(argv[0]);
-                 exit(EXIT_FAILURE);
-                 }
-                 break;
-                 case 'a':
-                 addr_in = strtol(optarg, (char **)NULL, 0);
-                 break; */
-                /* output data*/
-            case 'D':
-                space = optarg;
-                if (strcmp(space, "CARD_DRAM") == 0)
-                    type_out = SNAP_ADDRTYPE_CARD_DRAM;
-                else if (strcmp(space, "HOST_DRAM") == 0)
-                    type_out = SNAP_ADDRTYPE_HOST_DRAM;
-                else {
-                    usage(argv[0]);
-                    exit(EXIT_FAILURE);
-                }
-                break;
-            case 'd':
-                addr_out = strtol(optarg, (char **)NULL, 0);
-                break;
-            case 's':
-                size = __str_to_num(optarg);
-                break;
             case 't':
                 timeout = strtol(optarg, (char **)NULL, 0);
-                break;
-            case 'X':
-                verify++;
                 break;
             case 'N':
                 action_irq = 0;
@@ -270,13 +158,9 @@ int main(int argc, char *argv[])
         usage(argv[0]);
         exit(EXIT_FAILURE);
     }
-    if (argc == 1) {       // to provide help when program is called without argument
-        usage(argv[0]);
-        exit(EXIT_FAILURE);
-    }
     
-    /* if input file is defined, use that as input */
     int32_t var = 1;
+    // Simply set size = 128bytes (32 INT32)
     size = 32*sizeof(int32_t);
     
     /* Allocate in host memory the place to put the text to process */
@@ -285,7 +169,7 @@ int main(int argc, char *argv[])
         goto out_error;
     memset(ibuff, 0, size);
     
-    fprintf(stdout, "reading data %d\n",var);
+    fprintf(stdout, "At beginning, var = %d\n",var);
     
     // prepare params to be written in MMIO registers for action
     type_in = SNAP_ADDRTYPE_HOST_DRAM;
@@ -301,43 +185,46 @@ int main(int argc, char *argv[])
     type_out = SNAP_ADDRTYPE_HOST_DRAM;
     addr_out = (unsigned long)obuff;
     
+    // Allocate the card that will be used
+    printf("/dev/cxl/afu%d.0s\n", card_no);
+    snprintf(device, sizeof(device)-1, "/dev/cxl/afu%d.0s", card_no);
+    card = snap_card_alloc_dev(device, SNAP_VENDOR_ID_IBM,
+                               SNAP_DEVICE_ID_SNAP);
+    if (card == NULL) {
+        fprintf(stderr, "err: failed to open card %u: %s\n",
+                card_no, strerror(errno));
+        fprintf(stderr, "Default mode is FPGA mode.\n");
+        fprintf(stderr, "Did you want to run CPU mode ? => add SNAP_CONFIG=CPU before your command.\n");
+        fprintf(stderr, "Otherwise make sure you ran snap_find_card and snap_maint for your selected card.\n");
+        goto out_error;
+    }
+    
+    printf("before snap_attach_action\n");
+    // Attach the action that will be used on the allocated card
+    action = snap_attach_action(card, INTERFACETEST_ACTION_TYPE, action_irq, 60);
+    if (action == NULL) {
+        fprintf(stderr, "err: failed to attach action %u: %s\n",
+                card_no, strerror(errno));
+        goto out_error1;
+    }
+    
+    // Fill the stucture of data exchanged with the action
+    snap_prepare_interfacetest(&cjob, &mjob,
+                               (void *)addr_in,  size, type_in,
+                               (void *)addr_out, size, type_out);
+    
+    printf("ibuff address %08lx\n", addr_in);
+    printf("obuff address %08lx\n", addr_out);
+
+    // uncomment to dump the job structure
+    //__hexdump(stderr, &mjob, sizeof(mjob));
     
     int number=0;
     while (number < 10)
     {
         number ++;
-        printf("var value is %d\n", var);
-        memcpy(ibuff, &var, size);
-        printf("ibuff address %p\n", ibuff);
-        // Allocate the card that will be used
-        snprintf(device, sizeof(device)-1, "/dev/cxl/afu%d.0s", card_no);
-        card = snap_card_alloc_dev(device, SNAP_VENDOR_ID_IBM,
-                                   SNAP_DEVICE_ID_SNAP);
-        if (card == NULL) {
-            fprintf(stderr, "err: failed to open card %u: %s\n",
-                    card_no, strerror(errno));
-            fprintf(stderr, "Default mode is FPGA mode.\n");
-            fprintf(stderr, "Did you want to run CPU mode ? => add SNAP_CONFIG=CPU before your command.\n");
-            fprintf(stderr, "Otherwise make sure you ran snap_find_card and snap_maint for your selected card.\n");
-            goto out_error;
-        }
-        
-        // Attach the action that will be used on the allocated card
-        action = snap_attach_action(card, INTERFACETEST_ACTION_TYPE, action_irq, 60);
-        if (action == NULL) {
-            fprintf(stderr, "err: failed to attach action %u: %s\n",
-                    card_no, strerror(errno));
-            goto out_error1;
-        }
-        
-        // Fill the stucture of data exchanged with the action
-        snap_prepare_interfacetest(&cjob, &mjob,
-                                   (void *)addr_in,  size, type_in,
-                                   (void *)addr_out, size, type_out);
-        
-        // uncomment to dump the job structure
-        //__hexdump(stderr, &mjob, sizeof(mjob));
-        
+        printf("num = %d, Before HW operation, var is %d\n", number, var);
+        ibuff[0] = var;
         
         // Collect the timestamp BEFORE the call of the action
         gettimeofday(&stime, NULL);
@@ -347,6 +234,7 @@ int main(int argc, char *argv[])
         //  + start the action
         //  + wait for completion
         //  + read all the registers from the action (MMIO)
+        printf("timeout = %ld\n", timeout);
         rc = snap_action_sync_execute_job(action, &cjob, timeout);
         
         // Collect the timestamp AFTER the call of the action
@@ -356,9 +244,11 @@ int main(int argc, char *argv[])
                     strerror(errno));
             goto out_error2;
         }
-        memcpy(&var, obuff, size);
-        printf("var value after CAPI card is %d/n", var);
+
+	var = obuff[0];
+        printf("After HW operation, obuff[0] is %d/n", var);
         var= var *2;
+
         // test return code
         (cjob.retc == SNAP_RETC_SUCCESS) ? fprintf(stdout, "SUCCESS\n") : fprintf(stdout, "FAILED\n");
         if (cjob.retc != SNAP_RETC_SUCCESS) {
@@ -371,11 +261,10 @@ int main(int argc, char *argv[])
         fprintf(stdout, "SNAP helloworld took %lld usec\n",
                 (long long)timediff_usec(&etime, &stime));
         
-        // Detach action + disallocate the card
-        snap_detach_action(action);
-        snap_card_free(card);
-    }
-    
+    }    
+    // Detach action + disallocate the card
+    snap_detach_action(action);
+    snap_card_free(card);
     __free(obuff);
     __free(ibuff);
     exit(exit_code);
