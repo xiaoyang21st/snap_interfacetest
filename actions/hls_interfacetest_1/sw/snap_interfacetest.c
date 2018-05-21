@@ -223,7 +223,7 @@ int main(int argc, char *argv[])
     while (number < 10)
     {
         number ++;
-        printf("num = %d, Before HW operation, var is %d\n", number, var);
+        printf("num = %d, var is %d,", number, var);
         ibuff[0] = var;
         
         // Collect the timestamp BEFORE the call of the action
@@ -234,7 +234,6 @@ int main(int argc, char *argv[])
         //  + start the action
         //  + wait for completion
         //  + read all the registers from the action (MMIO)
-        printf("timeout = %ld\n", timeout);
         rc = snap_action_sync_execute_job(action, &cjob, timeout);
         
         // Collect the timestamp AFTER the call of the action
@@ -246,7 +245,7 @@ int main(int argc, char *argv[])
         }
 
 	var = obuff[0];
-        printf("After HW operation, obuff[0] is %d/n", var);
+        printf("after HW operation, obuff[0] is %d. \n", var);
         var= var *2;
 
         // test return code
@@ -255,11 +254,7 @@ int main(int argc, char *argv[])
             fprintf(stderr, "err: Unexpected RETC=%x!\n", cjob.retc);
             goto out_error2;
         }
-        
-        
-        // Display the time of the action call (MMIO registers filled + execution)
-        fprintf(stdout, "SNAP helloworld took %lld usec\n",
-                (long long)timediff_usec(&etime, &stime));
+        fprintf(stdout, "INFO: It took %lld usec \n", (long long)timediff_usec(&etime, &stime));
         
     }    
     // Detach action + disallocate the card

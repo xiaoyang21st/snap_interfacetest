@@ -32,15 +32,12 @@ void hls_action(snap_membus_t  *din_gmem,
     
     short rc = 0;
     uint64_t i_idx, o_idx;
+    uint32_t size;
     snapu32_t ReturnCode = SNAP_RETC_SUCCESS;
     
     i_idx = Action_Register->Data.in.addr >> ADDR_RIGHT_SHIFT;
-    //i_idx1 = act_reg->Data.in1.addr >> ADDR_RIGHT_SHIFT;
     o_idx = Action_Register->Data.out.addr >> ADDR_RIGHT_SHIFT;
     
-    // byte address received need to be aligned with port width
-    //input_address  = Action_Register->Data.in.addr;
-    //output_address = Action_Register->Data.out.addr;
     
     
     /* Required Action Type Detection */
@@ -54,16 +51,20 @@ void hls_action(snap_membus_t  *din_gmem,
             break;
     }
     int32_t var;
-    snap_membus_t ibuffer[MAX_NB_OF_BYTES_READ/BPERDW];
+    snap_membus_t buffer[MAX_NB_OF_BYTES_READ/BPERDW];
+
+
     snapu32_t xfer_size;
-    xfer_size = MIN((snapu32_t) sizeof(int32_t), (snapu32_t) MAX_NB_OF_BYTES_READ);
-    memcpy(ibuffer, (snap_membus_t *)(din_gmem + i_idx), xfer_size);
-    var = ibuffer[0](31, 0);
+    xfer_size = MIN(size, MAX_NB_OF_BYTES_READ);
+    
+    //This time the size is 128 and less than MAX_NB_OF_BYTES_READ
+    //Read and write out.
+    memcpy(buffer, (snap_membus_t *)(din_gmem + i_idx), xfer_size);
+    var = buffer[0](31, 0);
     var = var+1;
     
-    snap_membus_t obuffer[MAX_NB_OF_BYTES_READ/BPERDW];
-    obuffer[0](31, 0) = var;
-    memcpy((dout_gmem + o_idx), obuffer, sizeof(int32_t));
+    buffer[0](31, 0) = var;
+    memcpy((dout_gmem + o_idx), buffer, xfer_size);
     
     if (rc != 0)
         ReturnCode = SNAP_RETC_FAILURE;
